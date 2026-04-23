@@ -1,6 +1,8 @@
 const YahooFinance = require('yahoo-finance2').default;
 const yahooFinance = new YahooFinance();
 const Redis = require('ioredis');
+const NodeCache = require('node-cache');
+const memoryCache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
 
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
     maxRetriesPerRequest: 0,
@@ -26,18 +28,40 @@ const INDIAN_STOCKS = [
 ];
 
 /**
- * Fetch real-time quote via Yahoo Finance
+ * Normalize TradingView symbols to Yahoo Finance format
+ */
+const normalizeTicker = (ticker) => {
+    if (!ticker) return ticker;
+    if (ticker.startsWith('NSE:')) return ticker.replace('NSE:', '') + '.NS';
+    if (ticker.startsWith('BSE:')) return ticker.replace('BSE:', '') + '.BO';
+    return ticker;
+};
+
+/**
+ * Fetch real-time quote via Yahoo Finance (with Multi-Layer Cache)
  */
 const getQuote = async (ticker) => {
-    const cacheKey = `quote:${ticker}`;
+    const normalizedTicker = normalizeTicker(ticker);
+    const cacheKey = `quote:${normalizedTicker}`;
+    
+    // 1. Try Memory Cache (Fastest)
+    const memCached = memoryCache.get(cacheKey);
+    if (memCached) return memCached;
+
+    // 2. Try Redis Cache (Fast)
     let cached = null;
     try {
         cached = await redis.get(cacheKey);
     } catch (e) {}
-    if (cached) return JSON.parse(cached);
+    if (cached) {
+        const result = JSON.parse(cached);
+        memoryCache.set(cacheKey, result); // Backfill memory cache
+        return result;
+    }
 
+    // 3. Fetch from Yahoo
     try {
-        const quote = await yahooFinance.quote(ticker);
+        const quote = await yahooFinance.quote(normalizedTicker);
         if (quote) {
             const result = {
                 symbol: quote.symbol,
@@ -46,47 +70,105 @@ const getQuote = async (ticker) => {
                 changePercent: (quote.regularMarketChangePercent?.toFixed(2) || '0.00') + '%',
                 name: quote.shortName || quote.longName || quote.symbol
             };
+            
+            // Save to caches
+            memoryCache.set(cacheKey, result);
             try {
-                await redis.set(cacheKey, JSON.stringify(result), 'EX', 60); // 1 min for quotes
+                await redis.set(cacheKey, JSON.stringify(result), 'EX', 60); 
             } catch (e) {}
+            
             return result;
         }
     } catch (err) {
-        console.error(`Yahoo Quote Error for ${ticker}:`, err.message);
+        console.error(`Yahoo Quote Error for ${normalizedTicker}:`, err.message);
         return {
-            symbol: ticker,
+            symbol: normalizedTicker,
             price: 1500.00,
             change: 12.50,
             changePercent: '+0.85%',
-            name: ticker
+            name: normalizedTicker
         };
     }
     return null;
 };
 
 /**
- * Fetch historical OHLC data via Yahoo Finance
+ * Fetch multiple quotes in a single batch (Extremely Fast)
+ */
+const getQuotes = async (tickers) => {
+    if (!tickers || tickers.length === 0) return [];
+    
+    // Try to get as many as possible from memory cache first
+    const results = [];
+    const missing = [];
+    
+    tickers.forEach(t => {
+        const normalized = normalizeTicker(t);
+        const cached = memoryCache.get(`quote:${normalized}`);
+        if (cached) results.push(cached);
+        else missing.push(normalized);
+    });
+    
+    if (missing.length === 0) return results;
+
+    try {
+        // Fetch missing from Yahoo in one go
+        const quotes = await yahooFinance.quote(missing);
+        const fetched = (Array.isArray(quotes) ? quotes : [quotes]).map(quote => {
+            const result = {
+                symbol: quote.symbol,
+                price: quote.regularMarketPrice || 0,
+                change: quote.regularMarketChange || 0,
+                changePercent: (quote.regularMarketChangePercent?.toFixed(2) || '0.00') + '%',
+                name: quote.shortName || quote.longName || quote.symbol
+            };
+            memoryCache.set(`quote:${quote.symbol}`, result);
+            return result;
+        });
+        
+        return [...results, ...fetched];
+    } catch (err) {
+        console.warn('Batch Quote Error, falling back to sequential:', err.message);
+        const fallbacks = await Promise.all(missing.map(t => getQuote(t)));
+        return [...results, ...fallbacks.filter(Boolean)];
+    }
+};
+
+/**
+ * Fetch historical OHLC data via Yahoo Finance (with Multi-Layer Cache)
  */
 const getHistory = async (ticker) => {
-    const cacheKey = `history:${ticker}`;
+    const normalizedTicker = normalizeTicker(ticker);
+    const cacheKey = `history:${normalizedTicker}`;
+    
+    // 1. Try Memory Cache
+    const memCached = memoryCache.get(cacheKey);
+    if (memCached) return memCached;
+
+    // 2. Try Redis Cache
     let cached = null;
     try {
         cached = await redis.get(cacheKey);
     } catch (e) {}
-    if (cached) return JSON.parse(cached);
+    if (cached) {
+        const result = JSON.parse(cached);
+        memoryCache.set(cacheKey, result, 600); // Cache history for 10 mins in memory
+        return result;
+    }
 
+    const start = Date.now();
     try {
-        // Use historical for daily OHLC data
-        const history = await yahooFinance.historical(ticker, { 
-            period1: new Date('2024-01-01'), 
+        // Use chart() instead of deprecated historical() for better reliability
+        const result = await yahooFinance.chart(normalizedTicker, { 
+            period1: '2024-01-01', 
             interval: '1d' 
         });
         
-        if (history && history.length > 0) {
-            const result = history
+        if (result && result.quotes && result.quotes.length > 0) {
+            const resultData = result.quotes
                 .filter(q => q.open && q.high && q.low && q.close)
                 .map(q => ({
-                    time: Math.floor(new Date(q.date).getTime() / 1000), // UNIX timestamp in seconds
+                    time: Math.floor(new Date(q.date).getTime() / 1000), 
                     open: q.open,
                     high: q.high,
                     low: q.low,
@@ -94,17 +176,21 @@ const getHistory = async (ticker) => {
                     date: new Date(q.date).toISOString().split('T')[0]
                 }));
 
-            console.log(`[DEBUG] History fetched for ${ticker}: ${result.length} candles`);
+            console.log(`[PERF] History fetched for ${normalizedTicker} in ${Date.now() - start}ms: ${resultData.length} candles`);
+            
+            // Save to caches
+            memoryCache.set(cacheKey, resultData, 600);
             try {
-                await redis.set(cacheKey, JSON.stringify(result), 'EX', 3600); // 1 hour
+                await redis.set(cacheKey, JSON.stringify(resultData), 'EX', 3600); 
             } catch (e) {}
-            return result;
+            
+            return resultData;
         }
     } catch (err) {
-        console.error(`Yahoo History Error for ${ticker}:`, err.message);
+        console.error(`Yahoo History Error for ${normalizedTicker}:`, err.message);
         
         // FALLBACK: Return dummy data if API fails so the UI still works
-        console.warn(`[DEBUG] Returning fallback dummy data for ${ticker}`);
+        console.warn(`[DEBUG] Returning fallback dummy data for ${normalizedTicker}`);
         const fallback = [];
         let basePrice = 1500;
         const now = Math.floor(Date.now() / 1000);
@@ -154,6 +240,7 @@ const searchStocks = async (query) => {
 
 module.exports = {
     getQuote,
+    getQuotes,
     getHistory,
     searchStocks,
     INDIAN_STOCKS

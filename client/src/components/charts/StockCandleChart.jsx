@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { createChart, ColorType } from 'lightweight-charts';
+import { useEffect, useRef, memo } from 'react';
+import { createChart, ColorType, CrosshairMode } from 'lightweight-charts';
 
 const StockCandleChart = ({ data }) => {
   const chartContainerRef = useRef();
@@ -7,12 +7,7 @@ const StockCandleChart = ({ data }) => {
   const seriesRef = useRef();
 
   useEffect(() => {
-    console.log('[DEBUG] StockCandleChart Rendering with data:', data?.length, 'candles');
-    
-    if (!data || data.length === 0) {
-      console.warn('[DEBUG] No data provided to StockCandleChart');
-      return;
-    }
+    if (!data || data.length === 0 || !chartContainerRef.current) return;
 
     // Create chart if not exists
     if (!chartRef.current) {
@@ -23,19 +18,29 @@ const StockCandleChart = ({ data }) => {
           fontFamily: 'Inter, sans-serif',
         },
         grid: {
-          vertLines: { color: '#f1f5f9' },
-          horzLines: { color: '#f1f5f9' },
+          vertLines: { color: 'rgba(241, 245, 249, 0.5)' },
+          horzLines: { color: 'rgba(241, 245, 249, 0.5)' },
+        },
+        crosshair: {
+            mode: CrosshairMode.Normal,
         },
         width: chartContainerRef.current.clientWidth,
-        height: 400,
+        height: chartContainerRef.current.clientHeight || 450,
         timeScale: {
           borderVisible: false,
           timeVisible: true,
           secondsVisible: false,
+          barSpacing: 10,
         },
         rightPriceScale: {
           borderVisible: false,
+          scaleMargins: {
+            top: 0.1,
+            bottom: 0.1,
+          },
         },
+        handleScroll: true,
+        handleScale: true,
       });
 
       seriesRef.current = chartRef.current.addCandlestickSeries({
@@ -56,7 +61,12 @@ const StockCandleChart = ({ data }) => {
     }
 
     const handleResize = () => {
-      chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+      if (chartRef.current && chartContainerRef.current) {
+        chartRef.current.applyOptions({ 
+            width: chartContainerRef.current.clientWidth,
+            height: chartContainerRef.current.clientHeight
+        });
+      }
     };
 
     window.addEventListener('resize', handleResize);
@@ -71,15 +81,16 @@ const StockCandleChart = ({ data }) => {
   }, [data]);
 
   return (
-    <div className="relative w-full h-full bg-white rounded-2xl p-4 border border-slate-50 shadow-sm">
+    <div className="relative w-full h-full bg-white rounded-3xl p-6 border border-slate-100 shadow-sm transition-all hover:shadow-md">
       <div ref={chartContainerRef} className="w-full h-full" />
       {(!data || data.length === 0) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-50/50 rounded-2xl">
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Waiting for market data...</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm rounded-3xl">
+          <div className="w-12 h-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mb-4" />
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Analyzing Market Data...</p>
         </div>
       )}
     </div>
   );
 };
 
-export default StockCandleChart;
+export default memo(StockCandleChart);

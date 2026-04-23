@@ -4,7 +4,7 @@ import { buy, sell } from '../../services/tradeService';
 import { setPortfolio } from '../../store/tradeSlice';
 import { X, ArrowRight, Wallet } from 'lucide-react';
 import { clsx } from 'clsx';
-
+import { formatDisplaySymbol } from '../../utils/symbolUtils';
 const TradeModal = ({ stock, onClose }) => {
   const dispatch = useDispatch();
   const [action, setAction] = useState('buy');
@@ -36,7 +36,7 @@ const TradeModal = ({ stock, onClose }) => {
             <div className={clsx("w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg", action === 'buy' ? "bg-blue-600 shadow-blue-500/30" : "bg-red-500 shadow-red-500/30")}>
                <Wallet size={20} />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Trade {stock.symbol}</h2>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Trade {formatDisplaySymbol(stock.symbol)}</h2>
           </div>
           <button onClick={onClose} className="w-10 h-10 bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-all flex items-center justify-center">
             <X size={20} />
@@ -61,7 +61,7 @@ const TradeModal = ({ stock, onClose }) => {
         <div className="space-y-6 mb-10 bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
           <div className="flex justify-between items-center">
             <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Market Price</span>
-            <span className="text-lg font-black text-slate-900">${stock.price}</span>
+            <span className="text-lg font-black text-slate-900">₹{stock.price}</span>
           </div>
           <div className="space-y-3">
             <label className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Order Quantity</label>
@@ -76,7 +76,7 @@ const TradeModal = ({ stock, onClose }) => {
           <div className="h-px bg-slate-200" />
           <div className="flex justify-between items-center">
             <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Total Est.</span>
-            <span className={clsx("text-2xl font-black", action === 'buy' ? "text-blue-600" : "text-red-500")}>${total}</span>
+            <span className={clsx("text-2xl font-black", action === 'buy' ? "text-blue-600" : "text-red-500")}>₹{total}</span>
           </div>
         </div>
 

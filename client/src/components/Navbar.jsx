@@ -51,7 +51,7 @@ const Navbar = () => {
           <div className="flex items-center space-x-3 pl-2 group cursor-pointer" onClick={() => navigate('/portfolio')}>
             <div className="text-right hidden sm:block">
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Balance</p>
-              <p className="text-sm font-bold text-slate-900">${user.virtualBalance?.toLocaleString()}</p>
+              <p className="text-sm font-bold text-slate-900">₹{user.virtualBalance?.toLocaleString('en-IN')}</p>
             </div>
             <img 
               src={user.avatar} 

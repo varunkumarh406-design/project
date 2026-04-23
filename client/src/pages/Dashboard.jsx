@@ -3,14 +3,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { getQuote, getHistory, searchStocks, getWatchlist, addToWatchlist } from '../services/stockService';
 import { getSuggestions, followUser } from '../services/userService';
 import { setSelectedQuote, setHistory, setSearchResults, setWatchlist, setLoading } from '../store/stockSlice';
-import StockCandleChart from '../components/charts/StockCandleChart';
+import TradingViewChart from '../components/charts/TradingViewChart';
 import TradeModal from '../components/trade/TradeModal';
 import Navbar from '../components/Navbar';
 import Skeleton from '../components/Skeleton';
 import { Search, Plus, TrendingUp, TrendingDown, Star, Users, ArrowRight, UserPlus, Info } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useSocket } from '../hooks/useSocket';
-
+import { formatDisplaySymbol } from '../utils/symbolUtils';
 const Dashboard = () => {
   const dispatch = useDispatch();
   useSocket(); // Initialize real-time updates
@@ -22,22 +22,34 @@ const Dashboard = () => {
 
   useEffect(() => {
     const init = async () => {
-      dispatch(setLoading(true));
       try {
         const { data } = await getWatchlist();
         dispatch(setWatchlist(data));
         if (data.length > 0) {
-          handleSelectStock(data[0].symbol);
+          await handleSelectStock(data[0].symbol);
         }
       } catch (err) {
         console.error(err);
       } finally {
-        dispatch(setLoading(false));
+        // Only set loading false if we didn't start handleSelectStock 
+        // or if it already finished. handleSelectStock handles its own loading.
       }
     };
     init();
     fetchSuggestions();
   }, [dispatch]);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchQuery) {
+        handleSearch();
+      } else {
+        dispatch(setSearchResults([]));
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (!selectedQuote) return;
@@ -60,24 +72,34 @@ const Dashboard = () => {
   };
 
   const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchQuery) return;
-    const { data } = await searchStocks(searchQuery);
-    dispatch(setSearchResults(data));
+    if (e) e.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) return;
+    try {
+      const { data } = await searchStocks(query);
+      dispatch(setSearchResults(data));
+    } catch (err) {
+      console.error('Search error:', err);
+    }
   };
 
   const handleSelectStock = async (ticker, silent = false) => {
-    if (!silent) dispatch(setLoading(true));
+    if (!silent) {
+      dispatch(setLoading(true));
+      dispatch(setHistory([])); // Clear old chart data immediately
+    }
     try {
-      const [{ data: quote }, { data: hist }] = await Promise.all([
-        getQuote(ticker),
-        getHistory(ticker)
-      ]);
+      // Phase 1: Get Quote (Very fast with caching)
+      const { data: quote } = await getQuote(ticker);
       dispatch(setSelectedQuote(quote));
+      
+      if (!silent) dispatch(setLoading(false)); // Show header and skeletons for chart
+
+      // Phase 2: Get History (Can be slower)
+      const { data: hist } = await getHistory(ticker);
       dispatch(setHistory(hist));
     } catch (err) {
-      console.error(err);
-    } finally {
+      console.error('Error selecting stock:', err);
       if (!silent) dispatch(setLoading(false));
     }
   };
@@ -122,8 +144,8 @@ const Dashboard = () => {
                     )}
                   >
                     <div>
-                      <h4 className="font-bold text-slate-900">{stock.symbol}</h4>
-                      <p className="text-[10px] text-slate-400 font-medium">${stock.price}</p>
+                      <h4 className="font-bold text-slate-900">{formatDisplaySymbol(stock.symbol)}</h4>
+                      <p className="text-[10px] text-slate-400 font-medium">₹{stock.price}</p>
                     </div>
                     <div className={clsx("text-xs font-black px-2 py-1 rounded-lg", stock.change >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600")}>
                       {stock.changePercent}
@@ -150,17 +172,23 @@ const Dashboard = () => {
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             </form>
             <div className="space-y-3 max-h-48 overflow-y-auto mb-6 pr-2">
-              {searchResults.map((res) => (
-                <div key={res.symbol} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl transition-colors group cursor-pointer" onClick={() => handleSelectStock(res.symbol)}>
-                  <div>
-                    <h5 className="text-xs font-bold text-slate-900">{res.symbol}</h5>
-                    <p className="text-[10px] text-slate-400 truncate w-32">{res.name}</p>
+              {searchResults.length > 0 ? (
+                searchResults.map((res) => (
+                  <div key={res.symbol} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl transition-colors group cursor-pointer" onClick={() => handleSelectStock(res.symbol)}>
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-900">{formatDisplaySymbol(res.symbol)}</h5>
+                      <p className="text-[10px] text-slate-400 truncate w-32">{res.name}</p>
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); handleAddToWatchlist(res.symbol); }} className="p-1.5 bg-slate-100 text-slate-400 hover:bg-blue-600 hover:text-white rounded-xl transition-all">
+                      <Plus size={16} />
+                    </button>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); handleAddToWatchlist(res.symbol); }} className="p-1.5 bg-slate-100 text-slate-400 hover:bg-blue-600 hover:text-white rounded-xl transition-all">
-                    <Plus size={16} />
-                  </button>
+                ))
+              ) : searchQuery && (
+                <div className="text-center py-4">
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No symbols found</p>
                 </div>
-              ))}
+              )}
             </div>
 
             <div className="pt-6 border-t border-slate-100">
@@ -200,14 +228,14 @@ const Dashboard = () => {
                 <div>
                   <div className="flex items-center space-x-3 mb-2">
                     <h1 className="text-5xl font-black text-slate-900 tracking-tight">
-                      {selectedQuote.symbol}
+                      {formatDisplaySymbol(selectedQuote.symbol)}
                     </h1>
                     <span className={clsx("text-sm font-black px-3 py-1 rounded-full", selectedQuote.change >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600")}>
                       {selectedQuote.changePercent}
                     </span>
                   </div>
                   <p className="text-lg font-medium text-slate-400 flex items-center space-x-2">
-                    <span className="text-slate-900 font-bold">${selectedQuote.price}</span>
+                    <span className="text-slate-900 font-bold">₹{selectedQuote.price}</span>
                     <span className="text-sm">• Market Live</span>
                   </p>
                 </div>
@@ -219,8 +247,8 @@ const Dashboard = () => {
                 </button>
               </div>
 
-              <div className="h-[22rem] w-full mb-12">
-                <StockCandleChart data={history} />
+              <div className="h-[32rem] w-full mb-12">
+                <TradingViewChart symbol={selectedQuote.symbol} />
               </div>
 
               <div className="pt-10 border-t border-slate-100">
@@ -228,13 +256,13 @@ const Dashboard = () => {
                   <div>
                     <h3 className="text-2xl font-black text-slate-900 flex items-center space-x-3">
                       <Users size={26} className="text-blue-600" />
-                      <span>{selectedQuote.symbol} Hub</span>
+                      <span>{formatDisplaySymbol(selectedQuote.symbol)} Hub</span>
                     </h3>
                     <p className="text-sm font-medium text-slate-400 mt-1">Join the conversation with 4.2k active traders</p>
                   </div>
                   <div className="flex -space-x-3 group cursor-pointer">
                     {[1,2,3,4].map(i => (
-                      <img key={i} src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedQuote.symbol}${i}`} className="w-10 h-10 rounded-full border-4 border-white shadow-sm transition-transform group-hover:translate-x-1" alt="follower" />
+                      <img key={i} src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${formatDisplaySymbol(selectedQuote.symbol)}${i}`} className="w-10 h-10 rounded-full border-4 border-white shadow-sm transition-transform group-hover:translate-x-1" alt="follower" />
                     ))}
                     <div className="w-10 h-10 rounded-full bg-slate-100 border-4 border-white flex items-center justify-center text-[10px] font-black text-slate-500">+2.4k</div>
                   </div>

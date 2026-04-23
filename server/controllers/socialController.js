@@ -14,11 +14,12 @@ const getFeed = async (req, res) => {
 };
 
 const createPost = async (req, res) => {
-    const { body, ticker } = req.body;
+    const { body, ticker, image } = req.body;
     const post = await Post.create({
         author: req.user._id,
         body,
-        ticker
+        ticker,
+        image
     });
     const populatedPost = await Post.findById(post._id).populate('author', 'name avatar');
     getIO().emit('new_post', populatedPost);

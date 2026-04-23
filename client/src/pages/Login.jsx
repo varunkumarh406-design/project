@@ -4,6 +4,8 @@ import { useDispatch } from 'react-redux';
 import { login as loginApi } from '../services/authService';
 import { setCredentials } from '../store/authSlice';
 import { LogIn } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
+import { googleLogin as googleLoginApi } from '../services/authService';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -26,6 +28,16 @@ const Login = () => {
       setError(err.response?.data?.message || 'Login failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (response) => {
+    try {
+      const { data } = await googleLoginApi(response.credential);
+      dispatch(setCredentials({ user: data, token: data.token }));
+      navigate('/');
+    } catch (err) {
+      setError('Google login failed');
     }
   };
 
@@ -82,6 +94,22 @@ const Login = () => {
               )}
             </button>
           </form>
+
+          <div className="my-8 flex items-center">
+            <div className="flex-1 h-px bg-slate-200" />
+            <span className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">OR</span>
+            <div className="flex-1 h-px bg-slate-200" />
+          </div>
+
+          <div className="flex justify-center">
+            <GoogleLogin 
+              onSuccess={handleGoogleSuccess} 
+              onError={() => setError('Google login failed')}
+              useOneTap
+              theme="outline"
+              shape="pill"
+            />
+          </div>
 
           <div className="mt-8 text-center text-sm">
             <span className="text-secondary">Don't have an account? </span>

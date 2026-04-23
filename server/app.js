@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const compression = require('compression');
 const { errorHandler } = require('./middleware/error');
 const { apiLimiter } = require('./middleware/rateLimiter');
 
@@ -14,6 +15,7 @@ const userRoutes = require('./routes/users');
 const app = express();
 
 // Middleware
+app.use(compression());
 app.use(helmet({
     contentSecurityPolicy: false,
     crossOriginResourcePolicy: false

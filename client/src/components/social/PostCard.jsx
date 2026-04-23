@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart, MessageCircle, Share2, TrendingUp, User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useDispatch, useSelector } from 'react-redux';
-import { toggleLike } from '../../services/socialService';
+import { toggleLike, addComment as submitComment, getComments } from '../../services/socialService';
 import { updatePostLikes } from '../../store/socialSlice';
 import { clsx } from 'clsx';
 
@@ -10,8 +10,43 @@ const PostCard = ({ post }) => {
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
   const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [comments, setComments] = useState([]);
+  const [loadingComments, setLoadingComments] = useState(false);
 
-  const isLiked = post.likes.includes(user?._id);
+  useEffect(() => {
+    if (showComments) {
+      fetchComments();
+    }
+  }, [showComments]);
+
+  const fetchComments = async () => {
+    setLoadingComments(true);
+    try {
+      const { data } = await getComments(post._id);
+      setComments(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  const handleComment = async (e) => {
+    e.preventDefault();
+    if (!commentText.trim()) return;
+    try {
+      const { data } = await submitComment(post._id, { body: commentText });
+      setComments([...comments, data]);
+      setCommentText('');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (!post || !post.author) return null;
+
+  const isLiked = post.likes?.includes(user?._id) || false;
 
   const handleLike = async () => {
     try {
@@ -44,38 +79,85 @@ const PostCard = ({ post }) => {
         )}
       </div>
 
-      <p className="text-slate-600 mb-8 leading-relaxed font-medium text-lg">{post.body}</p>
+      <p className="text-slate-600 mb-6 leading-relaxed font-medium text-lg">{post.body}</p>
 
-      <div className="flex items-center space-x-8 pt-6 border-t border-slate-50">
-        <button 
-          onClick={handleLike}
-          className={clsx(
-            "flex items-center space-x-2.5 transition-all font-bold text-sm", 
-            isLiked ? "text-red-500" : "text-slate-400 hover:text-red-500"
-          )}
-        >
-          <div className={clsx("p-2 rounded-xl transition-all", isLiked ? "bg-red-50" : "bg-slate-50 group-hover:bg-red-50/50")}>
+      {post.image && (
+        <div className="mb-8 rounded-[2rem] overflow-hidden border border-slate-100 shadow-sm">
+          <img src={post.image} className="w-full h-auto object-cover max-h-[400px]" alt="Trade screenshot" />
+        </div>
+      )}
+
+      <div className="flex items-center justify-between pt-6 border-t border-slate-50">
+        <div className="flex items-center space-x-6">
+          <button 
+            onClick={handleLike}
+            className={clsx(
+              "flex items-center space-x-2 transition-all font-bold text-sm", 
+              isLiked ? "text-red-500" : "text-slate-400 hover:text-red-500"
+            )}
+          >
             <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
-          </div>
-          <span>{post.likes.length}</span>
-        </button>
+            <span>{post.likes?.length || 0}</span>
+          </button>
 
-        <button 
-          onClick={() => setShowComments(!showComments)}
-          className="flex items-center space-x-2.5 text-slate-400 hover:text-blue-600 transition-all font-bold text-sm group/btn"
-        >
-          <div className="p-2 bg-slate-50 group-hover/btn:bg-blue-50 rounded-xl transition-all">
+          <button 
+            onClick={() => setShowComments(!showComments)}
+            className="flex items-center space-x-2 text-slate-400 hover:text-blue-600 transition-all font-bold text-sm"
+          >
             <MessageCircle size={20} />
-          </div>
-          <span>Analyze</span>
-        </button>
+            <span>Comment</span>
+          </button>
 
-        <button className="flex items-center space-x-2.5 text-slate-400 hover:text-slate-900 transition-all ml-auto group/btn">
-          <div className="p-2 bg-slate-50 group-hover/btn:bg-slate-100 rounded-xl transition-all">
-            <Share2 size={20} />
-          </div>
+          <button 
+            className="flex items-center space-x-2 text-slate-400 hover:text-amber-500 transition-all font-bold text-sm"
+          >
+            <TrendingUp size={20} />
+            <span>Advice</span>
+          </button>
+        </div>
+
+        <button className="text-slate-400 hover:text-slate-900 transition-all">
+          <Share2 size={20} />
         </button>
       </div>
+
+      {showComments && (
+        <div className="mt-8 pt-8 border-t border-slate-50 space-y-6">
+          {/* Comment Form */}
+          <form onSubmit={handleComment} className="flex items-center space-x-3">
+            <img src={user?.avatar} className="w-8 h-8 rounded-xl shadow-sm" alt="My avatar" />
+            <input 
+              type="text" 
+              placeholder="Write a comment..." 
+              className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500/10 focus:bg-white transition-all outline-none"
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+            />
+          </form>
+
+          {/* Comments List */}
+          <div className="space-y-6 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+            {loadingComments ? (
+              <div className="text-center py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Loading analysis...</div>
+            ) : comments.length > 0 ? (
+              comments.map(c => (
+                <div key={c._id} className="flex items-start space-x-3 group/comment">
+                  <img src={c.author.avatar} className="w-8 h-8 rounded-xl shadow-sm" alt={c.author.name} />
+                  <div className="flex-1 bg-slate-50 rounded-2xl p-4 group-hover/comment:bg-slate-100 transition-colors">
+                    <div className="flex items-center justify-between mb-1">
+                      <h5 className="text-xs font-black text-slate-900">{c.author.name}</h5>
+                      <span className="text-[9px] text-slate-400 font-bold uppercase">{formatDistanceToNow(new Date(c.createdAt))}</span>
+                    </div>
+                    <p className="text-sm text-slate-600 font-medium leading-relaxed">{c.body}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">No analysis shared yet. Be the first!</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

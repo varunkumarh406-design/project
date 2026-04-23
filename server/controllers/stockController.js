@@ -37,17 +37,10 @@ const addToWatchlist = async (req, res) => {
 const getWatchlist = async (req, res, next) => {
     try {
         const watchlist = await Watchlist.findOne({ user: req.user._id });
-        if (!watchlist) return res.json([]);
+        if (!watchlist || watchlist.tickers.length === 0) return res.json([]);
         
-        const results = await Promise.all(watchlist.tickers.map(async (ticker) => {
-            try {
-                const quote = await stockService.getQuote(ticker);
-                return quote || { symbol: ticker, price: 0, change: 0, changePercent: '0%', name: ticker };
-            } catch (err) {
-                return { symbol: ticker, price: 0, change: 0, changePercent: '0%', name: ticker };
-            }
-        }));
-        
+        // Use high-speed batch fetching
+        const results = await stockService.getQuotes(watchlist.tickers);
         res.json(results);
     } catch (error) {
         next(error);
