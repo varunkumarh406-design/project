@@ -1,5 +1,5 @@
 const Skeleton = ({ className }) => (
-  <div className={`animate-pulse bg-white/5 rounded-xl ${className}`} />
+  <div className={`animate-pulse bg-slate-200 rounded-xl ${className}`} />
 );
 
 export default Skeleton;

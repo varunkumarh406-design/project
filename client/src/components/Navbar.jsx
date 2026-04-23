@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../store/authSlice';
-import { LayoutDashboard, TrendingUp, Users, LogOut, Briefcase } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Users, LogOut, Briefcase, Bell } from 'lucide-react';
 
 const Navbar = () => {
   const { user } = useSelector(state => state.auth);
@@ -16,44 +16,52 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link to="/" className="text-xl font-bold bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-transparent flex items-center space-x-2">
-          <TrendingUp className="text-primary" />
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200">
+      <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+        <Link to="/" className="text-2xl font-black text-slate-900 flex items-center space-x-2 tracking-tight">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+            <TrendingUp className="text-white" size={24} />
+          </div>
           <span>StockSocial</span>
         </Link>
 
-        <div className="hidden md:flex items-center space-x-8">
-          <Link to="/" className="flex items-center space-x-2 text-secondary hover:text-white transition-colors">
+        <div className="hidden md:flex items-center space-x-1 bg-slate-100 p-1 rounded-2xl">
+          <Link to="/" className="flex items-center space-x-2 px-6 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 transition-all font-semibold text-sm">
             <LayoutDashboard size={18} />
-            <span className="text-sm font-medium">Market</span>
+            <span>Market</span>
           </Link>
-          <Link to="/social" className="flex items-center space-x-2 text-secondary hover:text-white transition-colors">
+          <Link to="/social" className="flex items-center space-x-2 px-6 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 transition-all font-semibold text-sm">
             <Users size={18} />
-            <span className="text-sm font-medium">Social</span>
+            <span>Social</span>
           </Link>
-          <Link to="/portfolio" className="flex items-center space-x-2 text-secondary hover:text-white transition-colors">
+          <Link to="/portfolio" className="flex items-center space-x-2 px-6 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 transition-all font-semibold text-sm">
             <Briefcase size={18} />
-            <span className="text-sm font-medium">Portfolio</span>
+            <span>Portfolio</span>
           </Link>
         </div>
 
-        <div className="flex items-center space-x-6">
-          <Link to="/portfolio" className="hidden sm:flex flex-col items-end">
-            <span className="text-[10px] text-secondary uppercase font-bold tracking-widest">Balance</span>
-            <span className="text-sm font-bold text-success">${user.virtualBalance?.toLocaleString()}</span>
-          </Link>
+        <div className="flex items-center space-x-5">
+          <button className="p-3 text-slate-400 hover:text-blue-600 transition-colors relative">
+            <Bell size={22} />
+            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+          </button>
           
-          <div className="h-8 w-px bg-border mx-2" />
+          <div className="h-8 w-px bg-slate-200" />
 
-          <img 
-            src={user.avatar} 
-            alt="Profile" 
-            className="w-8 h-8 rounded-full border border-border" 
-          />
+          <div className="flex items-center space-x-3 pl-2 group cursor-pointer" onClick={() => navigate('/portfolio')}>
+            <div className="text-right hidden sm:block">
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Balance</p>
+              <p className="text-sm font-bold text-slate-900">${user.virtualBalance?.toLocaleString()}</p>
+            </div>
+            <img 
+              src={user.avatar} 
+              alt="Profile" 
+              className="w-11 h-11 rounded-2xl border-2 border-white shadow-md group-hover:border-blue-500 transition-all" 
+            />
+          </div>
 
-          <button onClick={handleLogout} className="text-secondary hover:text-danger transition-colors p-2">
-            <LogOut size={20} />
+          <button onClick={handleLogout} className="p-3 text-slate-400 hover:text-red-500 transition-colors">
+            <LogOut size={22} />
           </button>
         </div>
       </div>
