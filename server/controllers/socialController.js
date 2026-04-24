@@ -60,10 +60,18 @@ const getComments = async (req, res) => {
     res.json(comments);
 };
 
+const getUserPosts = async (req, res) => {
+    const posts = await Post.find({ author: req.params.id })
+        .populate('author', 'name avatar')
+        .sort({ createdAt: -1 });
+    res.json(posts);
+};
+
 module.exports = {
     getFeed,
     createPost,
     toggleLike,
     addComment,
-    getComments
+    getComments,
+    getUserPosts
 };

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { getQuote, getHistory, searchStocks, getWatchlist, addToWatchlist } from '../services/stockService';
+import { Link } from 'react-router-dom';
+import { getQuote, getHistory, searchStocks, getWatchlist, addToWatchlist, removeFromWatchlist } from '../services/stockService';
 import { getSuggestions, followUser } from '../services/userService';
 import { setSelectedQuote, setHistory, setSearchResults, setWatchlist, setLoading } from '../store/stockSlice';
 import TradingViewChart from '../components/charts/TradingViewChart';
@@ -11,6 +12,9 @@ import { Search, Plus, TrendingUp, TrendingDown, Star, Users, ArrowRight, UserPl
 import { clsx } from 'clsx';
 import { useSocket } from '../hooks/useSocket';
 import { formatDisplaySymbol } from '../utils/symbolUtils';
+import { getMarketStatus } from '../utils/marketUtils';
+import { getPortfolio } from '../services/tradeService';
+
 const Dashboard = () => {
   const dispatch = useDispatch();
   useSocket(); // Initialize real-time updates
@@ -19,20 +23,23 @@ const Dashboard = () => {
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [portfolioSummary, setPortfolioSummary] = useState(null);
+  const marketStatus = getMarketStatus();
 
   useEffect(() => {
     const init = async () => {
       try {
-        const { data } = await getWatchlist();
-        dispatch(setWatchlist(data));
-        if (data.length > 0) {
-          await handleSelectStock(data[0].symbol);
+        const { data: wData } = await getWatchlist();
+        dispatch(setWatchlist(wData));
+        
+        const { data: pData } = await getPortfolio();
+        setPortfolioSummary(pData);
+
+        if (wData.length > 0) {
+          await handleSelectStock(wData[0].symbol);
         }
       } catch (err) {
         console.error(err);
-      } finally {
-        // Only set loading false if we didn't start handleSelectStock 
-        // or if it already finished. handleSelectStock handles its own loading.
       }
     };
     init();
@@ -40,24 +47,22 @@ const Dashboard = () => {
   }, [dispatch]);
 
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      if (searchQuery) {
-        handleSearch();
-      } else {
-        dispatch(setSearchResults([]));
-      }
-    }, 500);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
-
-  useEffect(() => {
     if (!selectedQuote) return;
     const interval = setInterval(() => {
       handleSelectStock(selectedQuote.symbol, true);
-    }, 30000);
+      refreshPortfolio();
+    }, 10000); // 10 seconds for real-time feel
     return () => clearInterval(interval);
   }, [selectedQuote]);
+
+  const refreshPortfolio = async () => {
+    try {
+      const { data } = await getPortfolio();
+      setPortfolioSummary(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchSuggestions = async () => {
     setSuggestionsLoading(true);
@@ -104,10 +109,31 @@ const Dashboard = () => {
     }
   };
 
+  const isInWatchlist = watchlist.some(s => s.symbol === selectedQuote?.symbol);
+
+  const handleToggleWatchlist = async () => {
+    if (!selectedQuote) return;
+    try {
+      if (isInWatchlist) {
+        await removeFromWatchlist(selectedQuote.symbol);
+      } else {
+        await addToWatchlist(selectedQuote.symbol);
+      }
+      const { data } = await getWatchlist();
+      dispatch(setWatchlist(data));
+    } catch (err) {
+      console.error('Watchlist toggle error:', err);
+    }
+  };
+
   const handleAddToWatchlist = async (ticker) => {
-    await addToWatchlist(ticker);
-    const { data } = await getWatchlist();
-    dispatch(setWatchlist(data));
+    try {
+      await addToWatchlist(ticker);
+      const { data } = await getWatchlist();
+      dispatch(setWatchlist(data));
+    } catch (err) {
+      console.error('Add to watchlist error:', err);
+    }
   };
 
   const handleFollow = async (id) => {
@@ -236,15 +262,29 @@ const Dashboard = () => {
                   </div>
                   <p className="text-lg font-medium text-slate-400 flex items-center space-x-2">
                     <span className="text-slate-900 font-bold">₹{selectedQuote.price}</span>
-                    <span className="text-sm">• Market Live</span>
+                    <span className="text-sm">•</span>
+                    <span className={clsx("text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest", marketStatus.bg, marketStatus.color)}>
+                      Market {marketStatus.status}
+                    </span>
                   </p>
                 </div>
-                <button 
-                  onClick={() => setIsTradeModalOpen(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-2xl font-black text-lg transition-all shadow-xl shadow-blue-500/30"
-                >
-                  Quick Trade
-                </button>
+                <div className="flex items-center space-x-4">
+                  <button 
+                    onClick={handleToggleWatchlist}
+                    className={clsx(
+                      "p-4 rounded-2xl transition-all border-2",
+                      isInWatchlist ? "bg-amber-50 border-amber-400 text-amber-500" : "bg-white border-slate-100 text-slate-400 hover:border-amber-400 hover:text-amber-500"
+                    )}
+                  >
+                    <Star size={24} fill={isInWatchlist ? "currentColor" : "none"} />
+                  </button>
+                  <button 
+                    onClick={() => setIsTradeModalOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-2xl font-black text-lg transition-all shadow-xl shadow-blue-500/30"
+                  >
+                    Quick Trade
+                  </button>
+                </div>
               </div>
 
               <div className="h-[32rem] w-full mb-12">
@@ -318,8 +358,45 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Right: Who to Follow */}
+        {/* Right: Portfolio P&L & Who to Follow */}
         <div className="lg:col-span-3 space-y-6">
+          {/* Live P&L Widget */}
+          <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-2xl shadow-blue-900/20 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl -mr-16 -mt-16 group-hover:bg-blue-500/20 transition-all"></div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-sm font-bold text-blue-200 uppercase tracking-widest">Live Portfolio</h3>
+                <div className="flex items-center space-x-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                  <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Real-time</span>
+                </div>
+              </div>
+              
+              <div className="space-y-1 mb-6">
+                <p className="text-[10px] font-medium text-blue-300/60 uppercase tracking-[0.2em]">Total P&L</p>
+                <div className="flex items-baseline space-x-2">
+                  <h2 className={clsx(
+                    "text-3xl font-black tracking-tight",
+                    (portfolioSummary?.holdings?.reduce((acc, h) => acc + (h.gainLoss || 0), 0) >= 0) ? "text-emerald-400" : "text-red-400"
+                  )}>
+                    ₹{portfolioSummary?.holdings?.reduce((acc, h) => acc + (h.gainLoss || 0), 0).toFixed(2) || '0.00'}
+                  </h2>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                  <p className="text-[9px] font-bold text-blue-200/40 uppercase tracking-widest mb-1">Balance</p>
+                  <p className="text-sm font-black">₹{portfolioSummary?.virtualBalance?.toLocaleString('en-IN') || '0'}</p>
+                </div>
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                  <p className="text-[9px] font-bold text-blue-200/40 uppercase tracking-widest mb-1">Holdings</p>
+                  <p className="text-sm font-black">{portfolioSummary?.holdings?.length || 0}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="glass-card rounded-[2rem] p-8">
             <h3 className="text-xl font-bold mb-8 flex items-center justify-between">
               <span>Top Traders</span>
@@ -339,13 +416,13 @@ const Dashboard = () => {
               ) : (
                 suggestions.map((sug) => (
                   <div key={sug._id} className="flex items-center justify-between group cursor-pointer">
-                    <div className="flex items-center space-x-4">
+                    <Link to={`/user/${sug._id}`} className="flex items-center space-x-4">
                       <img src={sug.avatar} className="w-14 h-14 rounded-2xl border-4 border-white shadow-md transition-all group-hover:scale-105" alt={sug.name} />
                       <div>
                         <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight">{sug.name}</h4>
                         <p className="text-xs text-slate-400 font-medium">{sug.followers?.length || 0} followers</p>
                       </div>
-                    </div>
+                    </Link>
                     <button 
                       onClick={() => handleFollow(sug._id)}
                       className="w-10 h-10 bg-slate-50 text-slate-400 hover:bg-blue-600 hover:text-white rounded-xl transition-all flex items-center justify-center shadow-sm"

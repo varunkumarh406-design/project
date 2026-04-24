@@ -35,19 +35,35 @@ const getPortfolio = async (req, res, next) => {
     }
 };
 
+const NodeCache = require('node-cache');
+const leaderboardCache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
+
 const getLeaderboard = async (req, res) => {
-    const users = await User.find().select('name avatar virtualBalance');
-    const leaderboard = await Promise.all(users.map(async (u) => {
-        const portfolio = await tradeService.getPortfolio(u._id);
-        const holdingsValue = portfolio.reduce((acc, h) => acc + h.value, 0);
-        return {
-            name: u.name,
-            avatar: u.avatar,
-            totalValue: u.virtualBalance + holdingsValue
-        };
-    }));
-    leaderboard.sort((a, b) => b.totalValue - a.totalValue);
-    res.json(leaderboard.slice(0, 10));
+    try {
+        const cachedLeaderboard = leaderboardCache.get('top_traders');
+        if (cachedLeaderboard) {
+            return res.json(cachedLeaderboard);
+        }
+
+        const users = await User.find().select('name avatar virtualBalance');
+        const leaderboard = await Promise.all(users.map(async (u) => {
+            const portfolio = await tradeService.getPortfolio(u._id);
+            const holdingsValue = portfolio.reduce((acc, h) => acc + h.value, 0);
+            return {
+                name: u.name,
+                avatar: u.avatar,
+                totalValue: u.virtualBalance + holdingsValue
+            };
+        }));
+
+        leaderboard.sort((a, b) => b.totalValue - a.totalValue);
+        const top10 = leaderboard.slice(0, 10);
+        
+        leaderboardCache.set('top_traders', top10);
+        res.json(top10);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching leaderboard' });
+    }
 };
 
 const getHistory = async (req, res) => {

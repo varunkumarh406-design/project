@@ -108,9 +108,29 @@ const getSuggestions = async (req, res, next) => {
     }
 };
 
+// @desc    Search users
+// @route   GET /api/users/search/:query
+// @access  Private
+const searchUsers = async (req, res, next) => {
+    try {
+        const query = req.params.query;
+        const users = await User.find({
+            name: { $regex: query, $options: 'i' },
+            _id: { $ne: req.user._id }
+        })
+        .select('name avatar bio followers following')
+        .limit(10);
+        res.json(users);
+    } catch (error) {
+        console.error('[DEBUG] searchUsers Error:', error);
+        next(error);
+    }
+};
+
 module.exports = {
     getUserProfile,
     updateUserProfile,
     followUser,
-    getSuggestions
+    getSuggestions,
+    searchUsers
 };

@@ -2,6 +2,26 @@ const Trade = require('../models/Trade');
 const User = require('../models/User');
 const stockService = require('./stockService');
 
+const isMarketOpen = () => {
+    const now = new Date();
+    // Indian Standard Time (IST) is UTC+5:30
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istTime = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffset);
+    
+    const day = istTime.getDay();
+    const hours = istTime.getHours();
+    const minutes = istTime.getMinutes();
+    
+    // Weekends (0: Sunday, 6: Saturday)
+    if (day === 0 || day === 6) return false;
+    
+    const currentTime = hours * 60 + minutes;
+    const openTime = 9 * 0; // 9:00 AM
+    const closeTime = 15 * 60 + 30; // 3:30 PM
+    
+    return currentTime >= openTime && currentTime <= closeTime;
+};
+
 /**
  * Buy stock logic
  * @param {string} userId 
@@ -9,6 +29,8 @@ const stockService = require('./stockService');
  * @param {number} quantity 
  */
 const buyStock = async (userId, ticker, quantity) => {
+    if (!isMarketOpen()) throw new Error('Trading is only allowed between 9:00 AM and 3:30 PM IST');
+    
     const user = await User.findById(userId);
     const quote = await stockService.getQuote(ticker);
 
@@ -38,6 +60,8 @@ const buyStock = async (userId, ticker, quantity) => {
  * @param {number} quantity 
  */
 const sellStock = async (userId, ticker, quantity) => {
+    if (!isMarketOpen()) throw new Error('Trading is only allowed between 9:00 AM and 3:30 PM IST');
+    
     const user = await User.findById(userId);
     
     // Check holdings
@@ -85,21 +109,28 @@ const getPortfolio = async (userId) => {
         }
     });
 
-    const result = await Promise.all(Object.entries(holdings)
-        .filter(([_, data]) => data.quantity > 0)
-        .map(async ([ticker, data]) => {
-            const quote = await stockService.getQuote(ticker);
-            const currentVal = quote ? quote.price * data.quantity : 0;
-            const avgBuyPrice = data.totalCost / data.quantity;
-            return {
-                ticker,
-                shares: data.quantity,
-                avgBuyPrice,
-                currentPrice: quote ? quote.price : 0,
-                pnl: quote ? (quote.price - avgBuyPrice) * data.quantity : 0,
-                value: currentVal
-            };
-        }));
+    const activeTickers = Object.keys(holdings).filter(ticker => holdings[ticker].quantity > 0);
+    
+    // Batch fetch all quotes at once
+    const quotes = await stockService.getQuotes(activeTickers);
+    const quoteMap = new Map(quotes.map(q => [q.symbol, q]));
+
+    const result = activeTickers.map(ticker => {
+        const data = holdings[ticker];
+        const quote = quoteMap.get(ticker);
+        const currentPrice = quote ? quote.price : 0;
+        const currentVal = currentPrice * data.quantity;
+        const avgBuyPrice = data.totalCost / data.quantity;
+        
+        return {
+            ticker,
+            shares: data.quantity,
+            avgBuyPrice,
+            currentPrice,
+            pnl: (currentPrice - avgBuyPrice) * data.quantity,
+            value: currentVal
+        };
+    });
 
     return result;
 };

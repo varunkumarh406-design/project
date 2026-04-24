@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { getFeed, createPost, toggleLike, addComment, getComments } = require('../controllers/socialController');
+const { getFeed, createPost, toggleLike, addComment, getComments, getUserPosts } = require('../controllers/socialController');
 const { protect } = require('../middleware/auth');
 
 router.get('/feed', getFeed);
+router.get('/user/:id', getUserPosts);
 router.get('/post/:id/comments', getComments);
 
 // Protected

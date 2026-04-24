@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, TrendingUp, User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useDispatch, useSelector } from 'react-redux';
@@ -60,17 +61,17 @@ const PostCard = ({ post }) => {
   return (
     <div className="bg-white rounded-[2rem] p-8 shadow-lg shadow-slate-200/40 border border-slate-100 hover:border-blue-500/10 transition-all group">
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
+        <Link to={`/user/${post.author._id}`} className="flex items-center space-x-4 group/author">
           <img 
             src={post.author.avatar} 
             alt={post.author.name} 
-            className="w-12 h-12 rounded-2xl border-2 border-white shadow-sm" 
+            className="w-12 h-12 rounded-2xl border-2 border-white shadow-sm group-hover/author:border-blue-500 transition-all" 
           />
           <div>
-            <h4 className="font-black text-slate-900 group-hover:text-blue-600 transition-colors">{post.author.name}</h4>
+            <h4 className="font-black text-slate-900 group-hover/author:text-blue-600 transition-colors">{post.author.name}</h4>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{formatDistanceToNow(new Date(post.createdAt))} ago</p>
           </div>
-        </div>
+        </Link>
         {post.ticker && (
           <div className="bg-blue-50 text-blue-600 px-4 py-1.5 rounded-xl text-xs font-black border border-blue-100 flex items-center space-x-1">
             <TrendingUp size={14} />

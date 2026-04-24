@@ -92,6 +92,12 @@ const googleLogin = async (req, res) => {
                 password: Math.random().toString(36).slice(-10), // Random password for OAuth users
                 avatar: picture
             });
+        } else {
+            // Update avatar if it's missing or changed in Google
+            if (picture && user.avatar !== picture) {
+                user.avatar = picture;
+                await user.save();
+            }
         }
 
         res.json({

@@ -5,8 +5,11 @@ import { setPortfolio } from '../../store/tradeSlice';
 import { X, ArrowRight, Wallet } from 'lucide-react';
 import { clsx } from 'clsx';
 import { formatDisplaySymbol } from '../../utils/symbolUtils';
+import { isMarketOpen } from '../../utils/marketUtils';
+
 const TradeModal = ({ stock, onClose }) => {
   const dispatch = useDispatch();
+  const marketOpen = isMarketOpen();
   const [action, setAction] = useState('buy');
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -57,6 +60,12 @@ const TradeModal = ({ stock, onClose }) => {
         {error && <div className="bg-red-50 border border-red-100 text-red-600 px-6 py-4 rounded-2xl mb-8 text-sm font-medium flex items-center space-x-2">
           <span>{error}</span>
         </div>}
+
+        {!marketOpen && (
+          <div className="bg-amber-50 border border-amber-100 text-amber-600 px-6 py-4 rounded-2xl mb-8 text-xs font-bold flex items-center space-x-2">
+            <span className="uppercase tracking-widest">Market is currently closed. Trades will execute at next open.</span>
+          </div>
+        )}
 
         <div className="space-y-6 mb-10 bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
           <div className="flex justify-between items-center">
