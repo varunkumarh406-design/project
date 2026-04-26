@@ -4,7 +4,7 @@ services:
     name: stocksocial-api
     env: docker
     dockerfilePath: server/Dockerfile
-    dockerContext: server
+    dockerContext: .
     plan: free
     envVars:
       - key: NODE_ENV
@@ -31,7 +31,7 @@ services:
     name: stocksocial-client
     env: docker
     dockerfilePath: client/Dockerfile
-    dockerContext: client
+    dockerContext: .
     plan: free
     envVars:
       - key: VITE_API_URL
