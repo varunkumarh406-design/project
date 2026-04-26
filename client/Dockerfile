@@ -2,20 +2,19 @@
 FROM node:18-alpine AS builder
 
 WORKDIR /app
-RUN mkdir -p client
-COPY client/package*.json ./client/
-WORKDIR /app/client
+
+COPY package*.json ./
 RUN npm install
 
-COPY client/ .
+COPY . .
 RUN npm run build
 
 # Production stage
 FROM nginx:stable-alpine
 
-COPY --from=builder /app/client/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Add custom nginx config to handle SPA routing
+# Add custom nginx config
 RUN echo 'server { \
     listen 80; \
     location / { \

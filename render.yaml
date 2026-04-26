@@ -3,8 +3,9 @@ services:
   - type: web
     name: stocksocial-api
     env: docker
-    dockerfilePath: Dockerfile.server
-    dockerContext: .
+    dockerfilePath: Dockerfile # Relative to the rootDir
+    dockerContext: .          # Relative to the rootDir
+    rootDir: server           # This tells Render to look in the 'server' folder
     plan: free
     envVars:
       - key: NODE_ENV
@@ -12,7 +13,7 @@ services:
       - key: PORT
         value: 5000
       - key: MONGO_URI
-        sync: false # User must provide this in Render dashboard
+        sync: false
       - key: REDIS_URL
         fromService:
           type: redis
@@ -30,15 +31,16 @@ services:
   - type: web
     name: stocksocial-client
     env: docker
-    dockerfilePath: Dockerfile.client
-    dockerContext: .
+    dockerfilePath: Dockerfile # Relative to the rootDir
+    dockerContext: .          # Relative to the rootDir
+    rootDir: client           # This tells Render to look in the 'client' folder
     plan: free
     envVars:
       - key: VITE_API_URL
-        value: https://stocksocial-api.onrender.com/api # Replace with your actual API URL after first deploy
+        value: https://stocksocial-api.onrender.com/api # Replace with actual API URL
 
   # Redis for Caching
   - type: redis
     name: stocksocial-redis
     plan: free
-    ipAllowList: [] # Only allow internal traffic
+    ipAllowList: []

@@ -2,12 +2,12 @@
 FROM node:18-alpine AS builder
 
 WORKDIR /app
-RUN mkdir -p server
-COPY server/package*.json ./server/
-WORKDIR /app/server
+
+# Copy package files from the current context (which will be 'server')
+COPY package*.json ./
 RUN npm install
 
-COPY server/ .
+COPY . .
 
 # Production stage
 FROM node:18-alpine
