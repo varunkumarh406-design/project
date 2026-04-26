@@ -3,10 +3,11 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-COPY server/package*.json ./
+COPY ./server/package.json ./server/package-lock.json* ./
+RUN ls -la
 RUN npm install
 
-COPY server/ .
+COPY ./server/ .
 
 # Production stage
 FROM node:18-alpine
