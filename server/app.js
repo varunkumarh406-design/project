@@ -13,7 +13,9 @@ const tradeRoutes = require('./routes/trade');
 const userRoutes = require('./routes/users');
 
 const app = express();
-
+app.get('/ping', (req, res) => {
+  res.send('pong');
+}); 
 // Middleware
 app.use(compression());
 app.use(helmet({

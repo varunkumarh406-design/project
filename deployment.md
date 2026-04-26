@@ -34,52 +34,36 @@ VITE_GOOGLE_CLIENT_ID=your_google_client_id
 
 ---
 
-## 🛠️ Deployment Steps
+## 🚀 Deployment Options
 
-### 1. Build the Frontend
-Vite generates highly optimized static files for production.
+### Option 1: Render (Recommended)
+This project includes a `render.yaml` for automated deployment.
+
+1. **Push your code** to GitHub or GitLab.
+2. **Connect to Render**: Log in to [Render.com](https://render.com) and click "Blueprints" -> "New Blueprint Instance".
+3. **Connect Repository**: Select your StockSocial repository.
+4. **Configure Environment**:
+   - Render will automatically detect `render.yaml`.
+   - You will need to provide `MONGO_URI` (e.g., from MongoDB Atlas) in the Render dashboard.
+   - The `VITE_API_URL` for the client should point to your backend service URL (e.g., `https://stocksocial-api.onrender.com/api`).
+
+### Option 2: Docker (Local / VPS)
+You can run the entire stack using Docker Compose.
+
 ```bash
-cd client
-npm install
-npm run build
-```
-The output will be in the `client/dist` folder. You can host this on **Vercel**, **Netlify**, or an **S3 bucket**.
-
-### 2. Deploy the Backend
-1. **Transfer Files**: Upload the `server` folder to your server.
-2. **Install Deps**: `npm install --production`
-3. **Start with PM2**: Use a process manager like PM2 to keep the server running.
-```bash
-npm install -g pm2
-pm2 start server.js --name stocksocial-api
+docker-compose up --build
 ```
 
-### 3. Nginx Configuration (Reverse Proxy)
-If you are using a VPS, use Nginx to route traffic and handle SSL.
-```nginx
-server {
-    listen 80;
-    server_name api.your-domain.com;
-
-    location / {
-        proxy_pass http://localhost:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
+- **Frontend**: http://localhost
+- **Backend**: http://localhost:5000
 
 ---
 
 ## 🛡️ Production Checklist
-- [ ] **SSL Certificates**: Use Let's Encrypt (Certbot) for HTTPS.
-- [ ] **Database Backups**: Enable automated backups in MongoDB Atlas.
-- [ ] **Rate Limiting**: The built-in rate limiter is active; monitor logs for `429` errors.
-- [ ] **Redis Connection**: Ensure the server has firewall access to the Redis port (6379).
-- [ ] **CORS**: Verify `CLIENT_URL` matches your frontend domain exactly.
+- [ ] **Database**: Use MongoDB Atlas for a reliable production database.
+- [ ] **Environment Variables**: Ensure `JWT_SECRET`, `MONGO_URI`, and `REDIS_URL` are set.
+- [ ] **CORS**: Update `CLIENT_URL` in the backend to match your frontend production domain.
+- [ ] **Vite API URL**: Ensure `VITE_API_URL` is set correctly during the client build.
 
 ---
 
