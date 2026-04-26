@@ -3,7 +3,7 @@ services:
   - type: web
     name: stocksocial-api
     env: docker
-    dockerfilePath: server/Dockerfile
+    dockerfilePath: Dockerfile.server
     dockerContext: .
     plan: free
     envVars:
@@ -30,7 +30,7 @@ services:
   - type: web
     name: stocksocial-client
     env: docker
-    dockerfilePath: client/Dockerfile
+    dockerfilePath: Dockerfile.client
     dockerContext: .
     plan: free
     envVars:
