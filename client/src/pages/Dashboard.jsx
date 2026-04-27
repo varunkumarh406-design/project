@@ -23,6 +23,7 @@ const Dashboard = () => {
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [portfolioSummary, setPortfolioSummary] = useState(null);
   const marketStatus = getMarketStatus();
 
@@ -55,6 +56,19 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [selectedQuote]);
 
+  // Live Search with Debounce
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchQuery.trim()) {
+        handleSearch();
+      } else {
+        dispatch(setSearchResults([]));
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
   const refreshPortfolio = async () => {
     try {
       const { data } = await getPortfolio();
@@ -79,12 +93,18 @@ const Dashboard = () => {
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
     const query = searchQuery.trim();
-    if (!query) return;
+    if (!query) {
+      dispatch(setSearchResults([]));
+      return;
+    }
+    setSearchLoading(true);
     try {
       const { data } = await searchStocks(query);
       dispatch(setSearchResults(data));
     } catch (err) {
       console.error('Search error:', err);
+    } finally {
+      setSearchLoading(false);
     }
   };
 
@@ -197,21 +217,26 @@ const Dashboard = () => {
               />
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             </form>
-            <div className="space-y-3 max-h-48 overflow-y-auto mb-6 pr-2">
-              {searchResults.length > 0 ? (
+            <div className="space-y-3 max-h-48 overflow-y-auto mb-6 pr-2 min-h-[4rem] flex flex-col">
+              {searchLoading ? (
+                <div className="flex-1 flex flex-col justify-center items-center py-4 space-y-2">
+                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-[10px] font-bold text-blue-600/50 uppercase tracking-widest">Searching...</p>
+                </div>
+              ) : searchResults.length > 0 ? (
                 searchResults.map((res) => (
-                  <div key={res.symbol} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl transition-colors group cursor-pointer" onClick={() => handleSelectStock(res.symbol)}>
-                    <div>
+                  <div key={res.symbol} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl transition-colors group cursor-pointer border border-transparent hover:border-slate-100" onClick={() => handleSelectStock(res.symbol)}>
+                    <div className="truncate flex-1 mr-2">
                       <h5 className="text-xs font-bold text-slate-900">{formatDisplaySymbol(res.symbol)}</h5>
-                      <p className="text-[10px] text-slate-400 truncate w-32">{res.name}</p>
+                      <p className="text-[10px] text-slate-400 truncate">{res.name}</p>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); handleAddToWatchlist(res.symbol); }} className="p-1.5 bg-slate-100 text-slate-400 hover:bg-blue-600 hover:text-white rounded-xl transition-all">
+                    <button onClick={(e) => { e.stopPropagation(); handleAddToWatchlist(res.symbol); }} className="p-1.5 bg-slate-100 text-slate-400 hover:bg-blue-600 hover:text-white rounded-xl transition-all flex-shrink-0">
                       <Plus size={16} />
                     </button>
                   </div>
                 ))
               ) : searchQuery && (
-                <div className="text-center py-4">
+                <div className="flex-1 flex items-center justify-center py-4">
                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No symbols found</p>
                 </div>
               )}
