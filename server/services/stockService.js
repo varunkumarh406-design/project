@@ -212,6 +212,7 @@ const getHistory = async (ticker) => {
  * Search stocks (Indian + Global)
  */
 const searchStocks = async (query) => {
+    if (!query) return [];
     const q = query.toUpperCase();
     
     // First, filter from our static Indian list
@@ -222,16 +223,18 @@ const searchStocks = async (query) => {
     // Then, try Yahoo search for broader results
     try {
         const searchResults = await yahooFinance.search(query);
-        const globalResults = searchResults.quotes
-            .filter(q => q.isYahooFinance)
+        const globalResults = (searchResults.quotes || [])
+            .filter(q => q.symbol && (q.isYahooFinance || q.quoteType === 'EQUITY'))
             .map(q => ({
                 symbol: q.symbol,
-                name: q.shortname || q.longname || q.symbol
+                name: q.shortname || q.longname || q.name || q.symbol
             }));
         
         // Merge and remove duplicates by symbol
         const merged = [...indianResults, ...globalResults];
-        return Array.from(new Map(merged.map(item => [item.symbol, item])).values()).slice(0, 10);
+        const uniqueResults = Array.from(new Map(merged.map(item => [item.symbol, item])).values());
+        
+        return uniqueResults.slice(0, 10);
     } catch (err) {
         console.error('Yahoo Search Error:', err.message);
         return indianResults;
