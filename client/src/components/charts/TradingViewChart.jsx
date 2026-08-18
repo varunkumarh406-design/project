@@ -20,25 +20,33 @@ const TradingViewChart = ({ symbol }) => {
     widgetDiv.style.width = '100%';
     container.appendChild(widgetDiv);
 
-    const script = document.createElement('script');
-    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-    script.type = 'text/javascript';
-    script.async = true;
-    
-    script.innerHTML = JSON.stringify({
-      "autosize": true,
-      "symbol": tvSymbol,
-      "interval": "D",
-      "timezone": "Asia/Kolkata",
-      "theme": "light",
-      "style": "1",
-      "locale": "en",
-      "allow_symbol_change": true,
-      "calendar": false,
-      "support_host": "https://www.tradingview.com"
-    });
+    const initWidget = () => {
+      if (window.TradingView) {
+        new window.TradingView.widget({
+          autosize: true,
+          symbol: tvSymbol,
+          interval: "D",
+          timezone: "Asia/Kolkata",
+          theme: "light",
+          style: "1",
+          locale: "en",
+          enable_publishing: false,
+          allow_symbol_change: true,
+          container_id: widgetId,
+        });
+      }
+    };
 
-    container.appendChild(script);
+    if (window.TradingView) {
+      initWidget();
+    } else {
+      // Fallback: load tv.js dynamically if not already loaded, then initialize
+      const script = document.createElement('script');
+      script.src = 'https://s3.tradingview.com/tv.js';
+      script.type = 'text/javascript';
+      script.onload = initWidget;
+      document.head.appendChild(script);
+    }
 
     return () => {
       if (container) {

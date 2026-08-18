@@ -26,3 +26,6 @@ dist-ssr
 *json
 deploy.md
 deployment.md
+node_modules/
+.env
+dist/
