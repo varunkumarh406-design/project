@@ -1,18 +1,48 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+const DEMO_USER = {
+    name: 'TraderX',
+    email: 'traderx@stocksocial.com',
+    password: 'password123',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=TraderX',
+    virtualBalance: 100000,
+};
+
+const ensureDemoUserExists = async () => {
+    let user = await User.findOne({ email: DEMO_USER.email.toLowerCase() });
+
+    if (!user) {
+        user = await User.create({
+            name: DEMO_USER.name,
+            email: DEMO_USER.email.toLowerCase(),
+            password: DEMO_USER.password,
+            avatar: DEMO_USER.avatar,
+            virtualBalance: DEMO_USER.virtualBalance,
+        });
+    }
+
+    return user;
+};
+
 // @desc    Register new user
 // @route   POST /api/auth/register
 // @access  Public
 const registerUser = async (req, res) => {
-    const { name, email, password } = req.body;
+    const name = (req.body.name || '').trim();
+    const email = (req.body.email || '').trim().toLowerCase();
+    const password = req.body.password || '';
 
     if (!name || !email || !password) {
         res.status(400);
         throw new Error('Please add all fields');
     }
 
-    // Check if user exists
+    if (password.length < 6) {
+        res.status(400);
+        throw new Error('Password must be at least 6 characters long');
+    }
+
     const userExists = await User.findOne({ email });
     if (userExists) {
         res.status(400);
@@ -47,13 +77,18 @@ const registerUser = async (req, res) => {
 // @route   POST /api/auth/login
 // @access  Public
 const loginUser = async (req, res) => {
-    const { email, password } = req.body;
+    const email = (req.body.email || '').trim().toLowerCase();
+    const password = req.body.password;
 
-    // Check for user email
-    const user = await User.findOne({ email });
+    let user = await User.findOne({ email });
+    const isDemoLogin = email === DEMO_USER.email && password === DEMO_USER.password;
+
+    if (isDemoLogin) {
+        user = await ensureDemoUserExists();
+    }
 
     if (user && (await user.matchPassword(password))) {
-        res.json({
+        res.status(200).json({
             _id: user._id,
             name: user.name,
             email: user.email,
@@ -75,6 +110,11 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const googleLogin = async (req, res) => {
     const { tokenId } = req.body;
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+        return res.status(400).json({ message: 'Google login is not configured yet' });
+    }
+
     try {
         const ticket = await client.verifyIdToken({
             idToken: tokenId,
@@ -82,18 +122,16 @@ const googleLogin = async (req, res) => {
         });
         const { name, email, picture } = ticket.getPayload();
 
-        let user = await User.findOne({ email });
+        let user = await User.findOne({ email: email.toLowerCase() });
 
         if (!user) {
-            // Create user if doesn't exist
             user = await User.create({
                 name,
-                email,
-                password: Math.random().toString(36).slice(-10), // Random password for OAuth users
+                email: email.toLowerCase(),
+                password: Math.random().toString(36).slice(-10),
                 avatar: picture
             });
         } else {
-            // Update avatar if it's missing or changed in Google
             if (picture && user.avatar !== picture) {
                 user.avatar = picture;
                 await user.save();

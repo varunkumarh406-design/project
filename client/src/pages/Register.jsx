@@ -20,7 +20,18 @@ const Register = () => {
     setError('');
     setLoading(true);
     try {
-      const { data } = await registerApi({ name, email, password });
+      const payload = {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
+      };
+
+      if (payload.password.length < 6) {
+        setError('Password must be at least 6 characters long');
+        return;
+      }
+
+      const { data } = await registerApi(payload);
       dispatch(setCredentials({ user: data, token: data.token }));
       navigate('/');
     } catch (err) {

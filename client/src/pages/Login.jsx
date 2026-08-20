@@ -7,6 +7,8 @@ import { LogIn } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 import { googleLogin as googleLoginApi } from '../services/authService';
 
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -95,21 +97,25 @@ const Login = () => {
             </button>
           </form>
 
-          <div className="my-8 flex items-center">
-            <div className="flex-1 h-px bg-slate-200" />
-            <span className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">OR</span>
-            <div className="flex-1 h-px bg-slate-200" />
-          </div>
+          {googleClientId && !googleClientId.includes('your_google_client_id') && (
+            <>
+              <div className="my-8 flex items-center">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">OR</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
 
-          <div className="flex justify-center">
-            <GoogleLogin 
-              onSuccess={handleGoogleSuccess} 
-              onError={() => setError('Google login failed')}
-              useOneTap
-              theme="outline"
-              shape="pill"
-            />
-          </div>
+              <div className="flex justify-center">
+                <GoogleLogin 
+                  onSuccess={handleGoogleSuccess} 
+                  onError={() => setError('Google login failed')}
+                  useOneTap
+                  theme="outline"
+                  shape="pill"
+                />
+              </div>
+            </>
+          )}
 
           <div className="mt-8 text-center text-sm">
             <span className="text-secondary">Don't have an account? </span>
